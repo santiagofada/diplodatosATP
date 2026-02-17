@@ -1,0 +1,15 @@
+/old
+.cache
+.cache-santiagofada
+
+.env
+*.pyc
+*.pyo
+*.pyd
+
+# Carpeta .idea de PyCharm
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
