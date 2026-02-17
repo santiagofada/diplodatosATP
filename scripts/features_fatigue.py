@@ -22,13 +22,12 @@ def rest_days(last_date: Dict[int, pd.Timestamp], pid: int, date: pd.Timestamp, 
     return min(d, cap)
 
 
-def matches_last_days(match_dates: Dict[int, List[pd.Timestamp]], pid: int, date: pd.Timestamp, days: int) -> int:
+def matches_last_days(
+    match_dates: Dict[int, List[pd.Timestamp]],  pid: int,  date: pd.Timestamp, days: int,) -> int:
     lst = match_dates.get(pid, [])
     if not lst:
         return 0
-    keep = [d for d in lst if (date - d).days <= days]
-    match_dates[pid] = keep
-    return len(keep)
+    return sum(1 for d in lst if 0 <= (date - d).days <= days)
 
 
 def update_fatigue_post_match(
