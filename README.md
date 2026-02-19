@@ -1,29 +1,22 @@
-# ATP Match Winner Prediction Dataset (Pre-Match)
+# ATP Match Winner Prediction Dataset
 
 ---
 
-## ¿Qué es este dataset?
 
 Este dataset contiene **partidos individuales del circuito ATP** de tenis, preparados como un **problema de clasificación binaria pre-match**:
 
 > Dado un partido, predecir qué jugador gana.
 
-La idea no es predecir en vivo ni apostar, sino construir un dataset **limpio, realista y temporalmente consistente**, que sirva para:
-
-* entrenar modelos de machine learning,
-* analizar qué factores influyen en los resultados,
-* hacer validaciones históricas sin data leakage.
+La idea no es predecir en vivo el resultado de un partido, sino construir un dataset limpio y consistente, que sirva tanto para entrenar modelos de machine learning,ver qué factores influyen en los resultados,
 
 El foco principal está en **cómo se construyen las variables**, más que en el modelo final.
 
 ---
 
-## Unidad de observación
-
 Cada fila representa **un partido ATP justo antes de jugarse**.
 
 * Una fila = un partido histórico
-* Todas las variables usan solo información disponible antes del partido
+* Todas las variables usan solo información disponible antes del partido, ya sea respecto a loa jugadores o al torneo.
 * No hay estadísticas del partido actual
 
 Variable objetivo:
@@ -48,16 +41,15 @@ Se usan:
 
 No se usan:
 
-* cuotas de apuestas,
-* datos en vivo,
-* APIs externas,
+* Datos de apuestas o predicciones similares
+* datos en vivo
 * estadísticas post-match.
 
 ---
 
-## Cómo se construye el dataset (y por qué no hay leakage)
+## Cómo se construye el dataset
 
-Los partidos se procesan **en orden cronológico**.
+Los partidos se procesan **en orden cronológico**, esto es importante para evitar  data leakage.
 
 Para cada partido:
 
@@ -73,17 +65,13 @@ Esto aplica a:
 * head-to-head
 * carga del torneo
 
-Ninguna variable “ve el futuro”.
-
 ---
 
 ## Orden de jugadores y balance del target
 
 Para evitar sesgos artificiales:
 
-* En cada partido se hace un **swap aleatorio** de jugadores.
-* Con probabilidad 0.5, P1 es el ganador real.
-* Con probabilidad 0.5, P1 es el perdedor real.
+En cada partido se hace un **swap aleatorio** de jugadores, con probabilidad 0.5, P1 es el ganador real, es decir que hay probabilidad  0.5, de que P1 sea el perdedor real.
 
 Así:
 
@@ -97,7 +85,7 @@ Todas las variables numéricas se expresan como **P1 − P2**.
 ## Supuestos generales
 
 * El resultado de un partido puede aproximarse usando historial previo.
-* La superficie importa y se modela explícitamente.
+* Aspectos externos a los jugadores, como la superficie importa y se modelan explícitamente.
 * El rendimiento reciente pesa más que el muy antiguo.
 * Rankings faltantes no se “inventan”: se tratan como información ausente.
 
@@ -113,8 +101,6 @@ Sistema Elo adaptado al tenis:
 * Elo por superficie (hard / clay / grass)
 * Factor K dependiente del nivel del torneo
 * Decaimiento por inactividad
-
-El Elo **solo se actualiza después** de cada partido.
 
 ---
 
@@ -158,7 +144,7 @@ Para el torneo en curso:
 * partidos ya jugados
 * minutos acumulados en cancha
 
-Esto captura desgaste dentro del mismo torneo.
+Esto captura desgaste dentro del mismo torneo, aunque puede contener informacion redudante ya que ambos jugadores suelen haber jugado la misma cantidad de partidos en un torneo de eliminación directa.
 
 ---
 
@@ -168,8 +154,6 @@ Historial previo entre los jugadores:
 
 * enfrentamientos totales
 * enfrentamientos en la misma superficie
-
-Solo se usan partidos anteriores.
 
 ---
 
@@ -183,8 +167,6 @@ Promedios móviles de partidos previos:
 * puntos ganados con primer saque
 * puntos ganados con segundo saque
 * break points salvados
-
-Definen el perfil histórico de cada jugador.
 
 ---
 
@@ -230,15 +212,5 @@ Se incluyen como contexto:
 
 ---
 
-## Uso esperado
-
-Pensado para:
-
-* clasificación supervisada,
-* validación temporal,
-* análisis de features,
-* comparación de modelos.
-
----
 
 
