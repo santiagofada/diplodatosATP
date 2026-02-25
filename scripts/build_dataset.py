@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 import pandas as pd
 
-from utils import PROCESSED_DIR
+from utils import PROCESSED_DIR, load_players_lookup
 from download import ensure_atp_data, load_matches
 from elo import EloState, SURFACES
 from rankings import load_rankings, build_rank_hist, rank_delta_weeks
@@ -40,10 +40,23 @@ def _to_float(x) -> float:
     except Exception:
         return np.nan
 
+def _rank_deltas_for_player(rank_hist, pid: int, date: pd.Timestamp, weeks_list=(4, 8)):
+    """
+    Devuelve dict con deltas de rank y rank_points vs semanas atrás.
+    Requiere que rank_delta_weeks devuelva np.nan cuando no hay data.
+    """
+    out = {}
+    hist = rank_hist.get(pid, [])
+    for w in weeks_list:
+        dr, dp = rank_delta_weeks(hist, date, w)
+        out[f"rank_d{w}"] = _to_float(dr)
+        out[f"rp_d{w}"] = _to_float(dp)
+    return out
 
 def build_dataset(
     df_main: pd.DataFrame,
     df_qual_for_updates: Optional[pd.DataFrame],
+    players_lookup: Dict[int, dict],
     rank_hist: Dict[int, List[Tuple[pd.Timestamp, int, int]]],
     seed: int,
     default_rank_impute: int = 2000,
@@ -119,10 +132,45 @@ def build_dataset(
     # 1) Main draw: genera filas
     rows: List[dict] = []
 
+    def _player_age(pid: int, date: pd.Timestamp) -> float:
+        info = players_lookup.get(pid)
+        if not info:
+            return np.nan
+        dob = info.get("dob")
+        if dob is None or pd.isna(dob):
+            return np.nan
+        return (date - dob).days / 365.25
+
+    def _player_height(pid: int) -> float:
+        info = players_lookup.get(pid)
+        if not info:
+            return np.nan
+        h = info.get("height", np.nan)
+        return float(h) if h is not None and not pd.isna(h) else np.nan
+
+    def _player_lefty(pid: int) -> float:
+        info = players_lookup.get(pid)
+        if not info:
+            return np.nan
+        hand = info.get("hand")
+        if hand is None or (isinstance(hand, float) and np.isnan(hand)):
+            return np.nan
+        return 1.0 if hand == "L" else 0.0
+
     for _, r in df_main.iterrows():
         date = r["tourney_date"]
         w = int(r["winner_id"])
         l = int(r["loser_id"])
+
+        w_age = _player_age(w, date)
+        l_age = _player_age(l, date)
+
+        w_height = _player_height(w)
+        l_height = _player_height(l)
+
+        w_lefty = _player_lefty(w)
+        l_lefty = _player_lefty(l)
+
         surface = r.get("surface") if pd.notna(r.get("surface")) else "Unknown"
         level = str(r.get("tourney_level") or "UNK")
         tid = str(r.get("tourney_id"))
@@ -184,35 +232,14 @@ def build_dataset(
             l_rp = float(default_rp_impute)
 
         # Deltas ranking (4/8 semanas) desde rank_hist
-        w_rank_d4 = w_rp_d4 = l_rank_d4 = l_rp_d4 = np.nan
-        w_rank_d8 = w_rp_d8 = l_rank_d8 = l_rp_d8 = np.nan
+        w_d = _rank_deltas_for_player(rank_hist, w, date, weeks_list=(4, 8))
+        l_d = _rank_deltas_for_player(rank_hist, l, date, weeks_list=(4, 8))
 
-        wh = rank_hist.get(w, [])
-        lh = rank_hist.get(l, [])
+        w_rank_d4, w_rp_d4 = w_d["rank_d4"], w_d["rp_d4"]
+        w_rank_d8, w_rp_d8 = w_d["rank_d8"], w_d["rp_d8"]
 
-        dr, dp = rank_delta_weeks(wh, date, 4)
-        if dr is not None:
-            w_rank_d4 = float(dr)
-        if dp is not None:
-            w_rp_d4 = float(dp)
-
-        dr, dp = rank_delta_weeks(lh, date, 4)
-        if dr is not None:
-            l_rank_d4 = float(dr)
-        if dp is not None:
-            l_rp_d4 = float(dp)
-
-        dr, dp = rank_delta_weeks(wh, date, 8)
-        if dr is not None:
-            w_rank_d8 = float(dr)
-        if dp is not None:
-            w_rp_d8 = float(dp)
-
-        dr, dp = rank_delta_weeks(lh, date, 8)
-        if dr is not None:
-            l_rank_d8 = float(dr)
-        if dp is not None:
-            l_rp_d8 = float(dp)
+        l_rank_d4, l_rp_d4 = l_d["rank_d4"], l_d["rp_d4"]
+        l_rank_d8, l_rp_d8 = l_d["rank_d8"], l_d["rp_d8"]
 
         # Seed/entry
         w_entry, l_entry = r.get("winner_entry"), r.get("loser_entry")
@@ -237,6 +264,10 @@ def build_dataset(
         if random.random() < 0.5:
             # P1 = ganador real
             p1, p2, y = w, l, 1
+
+            p1_age, p2_age = w_age, l_age
+            p1_height, p2_height = w_height, l_height
+            p1_lefty, p2_lefty = w_lefty, l_lefty
 
             p1_elo, p2_elo = w_elo, l_elo
             p1_selo, p2_selo = w_selo, l_selo
@@ -276,6 +307,10 @@ def build_dataset(
         else:
             # P1 = perdedor real
             p1, p2, y = l, w, 0
+
+            p1_age, p2_age = l_age, w_age
+            p1_height, p2_height = l_height, w_height
+            p1_lefty, p2_lefty = l_lefty, w_lefty
 
             p1_elo, p2_elo = l_elo, w_elo
             p1_selo, p2_selo = l_selo, w_selo
@@ -324,6 +359,12 @@ def build_dataset(
                 "p1_id": int(p1),
                 "p2_id": int(p2),
                 "y_p1_win": int(y),
+                "age_diff": (p1_age - p2_age) if (not np.isnan(p1_age) and not np.isnan(p2_age)) else np.nan,
+                "height_diff": (p1_height - p2_height) if (
+                            not np.isnan(p1_height) and not np.isnan(p2_height)) else np.nan,
+                "lefty_diff": (p1_lefty - p2_lefty) if (not np.isnan(p1_lefty) and not np.isnan(p2_lefty)) else np.nan,
+                "p1_lefty": p1_lefty,
+                "p2_lefty": p2_lefty,
 
                 "elo_diff": p1_elo - p2_elo,
                 "surface_elo_diff": p1_selo - p2_selo,
@@ -377,8 +418,8 @@ def build_dataset(
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--year-from", type=int, default=2010)
-    ap.add_argument("--year-to", type=int, default=2024)
+    ap.add_argument("--year-from", type=int, default=None)
+    ap.add_argument("--year-to", type=int, default=None)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", type=str, default="atp_match_prediction_full.csv")
     ap.add_argument("--no-rankings", action="store_true")
@@ -388,9 +429,19 @@ def main() -> None:
     random.seed(args.seed)
     np.random.seed(args.seed)
 
-    ensure_atp_data(args.year_from, args.year_to, download_rankings=not args.no_rankings)
+    if args.year_from is None or args.year_to is None:
+        # rango completo soportado por Jeff Sackmann
+        year_from = 1968
+        year_to = pd.Timestamp.today().year
+    else:
+        year_from = args.year_from
+        year_to = args.year_to
 
-    df_all = load_matches(args.year_from, args.year_to)
+    ensure_atp_data(year_from, year_to, download_rankings=not args.no_rankings)
+
+    df_all = load_matches(year_from, year_to)
+
+    players_lookup = load_players_lookup()
 
     # Qualies dentro del mismo archivo: rounds que empiezan con "Q"
     is_qual = df_all["round"].astype(str).str.startswith("Q", na=False)
@@ -400,13 +451,16 @@ def main() -> None:
     if args.no_rankings:
         rank_hist = {}
     else:
-        rankings = load_rankings(args.year_from, args.year_to)
+        rankings = load_rankings(year_from, year_to)
         rank_hist = build_rank_hist(rankings)
+
+
 
     df_out = build_dataset(
         df_main=df_main,
         df_qual_for_updates=df_qual,
         rank_hist=rank_hist,
+        players_lookup=players_lookup,
         seed=args.seed,
     )
 

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 
-def rest_days(last_date: Dict[int, pd.Timestamp], pid: int, date: pd.Timestamp, cap: int = 999) -> int:
+def rest_days(last_date: Dict[int, pd.Timestamp], pid: int, date: pd.Timestamp, cap: int = 365*2) -> int:
     prev = last_date.get(pid)
     if prev is None:
         return cap

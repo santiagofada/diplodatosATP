@@ -2,6 +2,7 @@
 
 ---
 
+## ¿Qué es este dataset?
 
 Este dataset contiene **partidos individuales del circuito ATP** de tenis, preparados como un **problema de clasificación binaria pre-match**:
 
@@ -37,19 +38,22 @@ Se usan:
 
 * partidos ATP (`atp_matches_YYYY.csv`)
 * rankings ATP históricos
-* información básica de jugadores
+* información básica de jugadores (`atp_players.csv`)
 
 No se usan:
 
 * Datos de apuestas o predicciones similares
-* datos en vivo
-* estadísticas post-match.
+* datos en vivo,
+* APIs externas,
+* estadísticas generadas despues del partido.
 
 ---
 
 ## Cómo se construye el dataset
 
 Los partidos se procesan **en orden cronológico**, esto es importante para evitar  data leakage.
+
+Las características estáticas (edad, altura, mano dominante) no generan leakage porque no dependen del resultado del partido.
 
 Para cada partido:
 
@@ -64,6 +68,8 @@ Esto aplica a:
 * fatiga
 * head-to-head
 * carga del torneo
+
+Ninguna variable “ve el futuro”.
 
 ---
 
@@ -85,132 +91,79 @@ Todas las variables numéricas se expresan como **P1 − P2**.
 ## Supuestos generales
 
 * El resultado de un partido puede aproximarse usando historial previo.
-* Aspectos externos a los jugadores, como la superficie importa y se modelan explícitamente.
+* La superficie importa y se modela explícitamente.
 * El rendimiento reciente pesa más que el muy antiguo.
 * Rankings faltantes no se “inventan”: se tratan como información ausente.
 
 ---
 
-## Variables incluidas
-
-### 1. Habilidad (Elo)
-
-Sistema Elo adaptado al tenis:
-
-* Elo global
-* Elo por superficie (hard / clay / grass)
-* Factor K dependiente del nivel del torneo
-* Decaimiento por inactividad
-
----
-
-### 2. Ranking ATP
-
-Se incluyen rankings históricos para capturar jerarquía competitiva.
-
-Variables:
-
-* ranking actual
-* puntos ATP
-* cambios de ranking y puntos en 4 y 8 semanas
-
-Rankings faltantes se imputan con valores altos (baja jerarquía).
-
----
-
-### 3. Forma reciente
-
-Se mide usando resultados previos:
-
-* winrate últimos 10 partidos
-* winrate últimos 20 partidos
-* racha actual
-
----
-
-### 4. Fatiga
-
-Indicadores de carga física:
-
-* días de descanso desde el último partido
-* partidos jugados en los últimos 7, 14 y 30 días
-
----
-
-### 5. Carga del torneo actual
-
-Para el torneo en curso:
-
-* partidos ya jugados
-* minutos acumulados en cancha
-
-Esto captura desgaste dentro del mismo torneo, aunque puede contener informacion redudante ya que ambos jugadores suelen haber jugado la misma cantidad de partidos en un torneo de eliminación directa.
-
----
-
-### 6. Head-to-Head
-
-Historial previo entre los jugadores:
-
-* enfrentamientos totales
-* enfrentamientos en la misma superficie
-
----
-
-### 7. Estadísticas históricas de juego
-
-Promedios móviles de partidos previos:
-
-* aces
-* dobles faltas
-* primeros saques dentro
-* puntos ganados con primer saque
-* puntos ganados con segundo saque
-* break points salvados
-
----
-
 ## Tabla de features principales
 
-| Grupo   | Feature                     | Descripción                        |
-| ------- | --------------------------- | ---------------------------------- |
-| Elo     | elo_diff                    | Diferencia de Elo global           |
-| Elo     | surface_elo_diff            | Diferencia de Elo en la superficie |
-| Ranking | rank_diff                   | Diferencia de ranking ATP          |
-| Ranking | rank_points_diff            | Diferencia de puntos ATP           |
-| Ranking | rank_d4_diff                | Cambio de ranking (4 semanas)      |
-| Ranking | rank_d8_diff                | Cambio de ranking (8 semanas)      |
-| Forma   | wr10_diff                   | Winrate últimos 10                 |
-| Forma   | wr20_diff                   | Winrate últimos 20                 |
-| Forma   | streak_diff                 | Racha actual                       |
-| Fatiga  | rest_diff                   | Días de descanso                   |
-| Fatiga  | m7_diff                     | Partidos últimos 7 días            |
-| Fatiga  | m14_diff                    | Partidos últimos 14 días           |
-| Fatiga  | m30_diff                    | Partidos últimos 30 días           |
-| Torneo  | tourney_matches_so_far_diff | Partidos jugados en el torneo      |
-| Torneo  | tourney_minutes_so_far_diff | Minutos acumulados                 |
-| H2H     | h2h_diff                    | Head-to-head total                 |
-| H2H     | h2h_surface_diff            | Head-to-head por superficie        |
-| Stats   | ace_rate_diff               | Tasa de aces                       |
-| Stats   | df_rate_diff                | Tasa de dobles faltas              |
-| Stats   | first_in_rate_diff          | Primer saque dentro                |
-| Stats   | first_won_rate_diff         | Puntos ganados con primer saque    |
-| Stats   | second_won_rate_diff        | Puntos ganados con segundo saque   |
-| Stats   | bp_saved_rate_diff          | Break points salvados              |
+| Grupo     | Feature                     | Descripción                                 |
+|-----------|-----------------------------|---------------------------------------------|
+| Target    | y_p1_win                    | 1 si gana P1, 0 si pierde                   |
+| Identidad | p1_id / p2_id               | ID de jugadores                             |
+| Contexto  | date                        | Fecha del partido                           |
+| Contexto  | surface                     | Superficie                                  |
+| Contexto  | round                       | Ronda                                       |
+| Contexto  | tourney_level               | Nivel del torneo                            |
+| Contexto  | best_of                     | Formato BO3 / BO5                           |
+| Contexto  | entry_p1 / entry_p2         | Tipo de entrada (Q, WC, LL, etc.)           |
+| Jugador   | age_diff                    | Diferencia de edad (años)                   |
+| Jugador   | height_diff                 | Diferencia de altura (cm)                   |
+| Jugador   | lefty_diff                  | Diferencia mano dominante                   |
+| Elo       | elo_diff                    | Diferencia de Elo global                    |
+| Elo       | surface_elo_diff            | Diferencia de Elo en la superficie          |
+| Ranking   | rank_diff                   | Diferencia ranking ATP                      |
+| Ranking   | rank_points_diff            | Diferencia puntos ATP                       |
+| Ranking   | rank_d4_diff                | Cambio ranking 4 semanas                    |
+| Ranking   | rank_points_d4_diff         | Cambio puntos 4 semanas                     |
+| Ranking   | rank_d8_diff                | Cambio ranking 8 semanas                    |
+| Ranking   | rank_points_d8_diff         | Cambio puntos 8 semanas                     |
+| Forma     | wr10_diff                   | Winrate últimos 10 partidos                 |
+| Forma     | wr20_diff                   | Winrate últimos 20 partidos                 |
+| Forma     | streak_diff                 | Diferencia de racha actual                  |
+| Fatiga    | rest_diff                   | Diferencia días de descanso                 |
+| Fatiga    | m7_diff                     | Diferencia partidos últimos 7 días          |
+| Fatiga    | m14_diff                    | Diferencia partidos últimos 14 días         |
+| Fatiga    | m30_diff                    | Diferencia partidos últimos 30 días         |
+| Torneo    | tourney_matches_so_far_diff | Diferencia partidos jugados en el torneo    |
+| Torneo    | tourney_minutes_so_far_diff | Diferencia minutos acumulados en el torneo  |
+| H2H       | h2h_diff                    | Historial total entre jugadores             |
+| H2H       | h2h_surface_diff            | Historial en la misma superficie            |
+| Stats     | ace_rate_diff               | Diferencia tasa de aces                     |
+| Stats     | df_rate_diff                | Diferencia tasa de dobles faltas            |
+| Stats     | first_in_rate_diff          | Diferencia primer saque dentro              |
+| Stats     | first_won_rate_diff         | Diferencia puntos ganados con primer saque  |
+| Stats     | second_won_rate_diff        | Diferencia puntos ganados con segundo saque |
+| Stats     | bp_saved_rate_diff          | Diferencia break points salvados            |
 
 ---
 
-## Variables categóricas
+## Definiciones y valores posibles
 
-Se incluyen como contexto:
-
-* superficie
-* ronda
-* nivel del torneo
-* tipo de entrada (Q, WC, LL, etc.)
-* formato del partido (BO3 / BO5)
+| Variable            | Valores posibles                               | Definición                                     |
+|---------------------|------------------------------------------------|------------------------------------------------|
+| y_p1_win            | 0 / 1                                          | 1 si gana P1, 0 si pierde                      |
+| surface             | Hard / Clay / Grass / Carpet / Unknown         | Superficie del partido                         |
+| round               | R128, R64, R32, R16, QF, SF, F, RR, Q1, Q2, Q3 | Ronda del torneo                               |
+| tourney_level       | G, M, A, C, D, F, etc.                         | Nivel del torneo según ATP                     |
+| best_of             | 3 / 5                                          | Formato del partido (sets)                     |
+| entry_p1 / entry_p2 | Q, WC, LL, SE, PR, None                        | Tipo de entrada al torneo                      |
+| lefty_diff          | -1 / 0 / 1                                     | Diferencia mano dominante (zurdo=1, diestro=0) |
+| p1_lefty / p2_lefty | 0 / 1                                          | 1 si zurdo, 0 si diestro                       |
 
 ---
 
+## Uso esperado
+
+Pensado para:
+
+* clasificación supervisada,
+* validación temporal,
+* análisis de features,
+* comparación de modelos.
+
+---
 
 

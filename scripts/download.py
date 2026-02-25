@@ -1,4 +1,5 @@
 import urllib.request
+import urllib.error
 import pandas as pd
 from pathlib import Path
 
@@ -67,3 +68,37 @@ def load_matches(year_from: int, year_to: int) -> pd.DataFrame:
         ["tourney_date", "tourney_id", "match_num"],
         kind="mergesort"
     ).reset_index(drop=True)
+
+def load_players_lookup() -> dict:
+    """
+    Load atp_players.csv and return dict: pid -> {"dob": Timestamp, "height": float, "hand": str}
+    """
+    p = RAW_ATP_DIR / "atp_players.csv"
+    if not p.exists():
+        raise FileNotFoundError(f"No existe {p}. Corré ensure_atp_data primero.")
+
+    df = pd.read_csv(p)
+
+    # dob viene como YYYYMMDD (a veces vacío)
+    df["dob"] = pd.to_datetime(df["dob"], format="%Y%m%d", errors="coerce")
+
+    # height a numérico
+    df["height"] = pd.to_numeric(df.get("height"), errors="coerce")
+
+    # hand suele ser "R" / "L" (puede venir NaN)
+    df["hand"] = df.get("hand")
+
+    # player_id es la key
+    df["player_id"] = pd.to_numeric(df["player_id"], errors="coerce").astype("Int64")
+
+    out = {}
+    for row in df.itertuples(index=False):
+        pid = getattr(row, "player_id")
+        if pd.isna(pid):
+            continue
+        out[int(pid)] = {
+            "dob": getattr(row, "dob"),
+            "height": getattr(row, "height"),
+            "hand": getattr(row, "hand"),
+        }
+    return out

@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from typing import Dict, List, Tuple
 
 from utils import RAW_ATP_DIR, parse_yyyymmdd
@@ -39,13 +40,25 @@ def build_rank_hist(df: pd.DataFrame) -> Dict[int, List[Tuple[pd.Timestamp, int,
 def rank_delta_weeks(hist, date, weeks: int):
     """Ranking change relative to a given number of weeks in the past."""
     if not hist:
-        return None, None
+        return np.nan, np.nan
 
-    cur = next(((r, p) for d, r, p in reversed(hist) if d <= date), None)
+    # ranking actual estrictamente previo al match
+    cur = next(
+        ((r, p) for d, r, p in reversed(hist) if d < date),
+        None,
+    )
+    if cur is None:
+        return np.nan, np.nan
+
     past_date = date - pd.Timedelta(days=7 * weeks)
-    past = next(((r, p) for d, r, p in reversed(hist) if d <= past_date), None)
 
-    if cur is None or past is None:
-        return None, None
+    # ranking previo a la fecha objetivo pasada
+    past = next(
+        ((r, p) for d, r, p in reversed(hist) if d < past_date),
+        None,
+    )
+
+    if past is None:
+        return np.nan, np.nan
 
     return cur[0] - past[0], cur[1] - past[1]
